@@ -1,0 +1,71 @@
+```lua
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+
+local function isFruit(object)
+    return (object:IsA("Tool") or object:IsA("Model"))
+        and string.find(object.Name:lower(), "fruit") ~= nil
+end
+
+local function createESP(fruit)
+    if fruit:FindFirstChild("FruitESP") then return end
+
+    local part = fruit:FindFirstChildWhichIsA("BasePart", true)
+    if not part then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "FruitESP"
+    billboard.AlwaysOnTop = true
+    billboard.Size = UDim2.new(0, 150, 0, 35)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.Adornee = part
+
+    local label = Instance.new("TextLabel")
+    label.Parent = billboard
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "🍎 " .. fruit.Name
+    label.TextColor3 = Color3.fromRGB(0, 255, 127)
+    label.TextScaled = true
+    label.Font = Enum.Font.SourceSansBold
+    label.TextStrokeTransparency = 0.5
+
+    billboard.Parent = CoreGui
+end
+
+local function setupFruit(fruit)
+    if not isFruit(fruit) then return end
+
+    task.spawn(function()
+        for _ = 1, 20 do
+            if not fruit.Parent then return end
+
+            if fruit:FindFirstChildWhichIsA("BasePart", true) then
+                createESP(fruit)
+                print("Fruit detected:", fruit.Name)
+                return
+            end
+
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- Scan all existing objects
+for _, object in ipairs(Workspace:GetDescendants()) do
+    setupFruit(object)
+end
+
+-- Detect new fruits anywhere in Workspace
+Workspace.DescendantAdded:Connect(function(object)
+    setupFruit(object)
+end)
+
+-- Remove ESP when the fruit disappears
+Workspace.DescendantRemoving:Connect(function(object)
+    local esp = object:FindFirstChild("FruitESP")
+    if esp then
+        esp:Destroy()
+    end
+end)
+```
