@@ -1,0 +1,51 @@
+--// First Sea Island Nameplates
+
+local Islands = {
+    ["Pirate Starter"] = Vector3.new(1139.28, 16.30, 1489.91),
+    ["Marine Starter"] = Vector3.new(-2549.59, 6.88, 2041.78),
+    ["Middle Town"] = Vector3.new(-689.60, 15.25, 1583.40),
+    ["Jungle"] = Vector3.new(-1107.67, 52.80, -509.44),
+    ["Pirate Village"] = Vector3.new(-1149.46, 14.60, 4153.77),
+    ["Desert"] = Vector3.new(1330.46, 101.90, 4489.41),
+    ["Frozen Village"] = Vector3.new(1462.12, 97.28, -1394.49),
+    ["Marine Fortress"] = Vector3.new(-5150.52, 375.28, 4443.84),
+    ["Lower Skylands"] = Vector3.new(-4824.10, 789.46, -2594.36),
+    ["Upper Skylands"] = Vector3.new(-8037.55, 5756.06, -1961.71),
+    ["Prison"] = Vector3.new(5443.79, 161.84, 787.36),
+    ["Colosseum"] = Vector3.new(-1674.77, 39.39, -3138.41),
+    ["Magma Village"] = Vector3.new(-5512.21, 62.83, 8574.80),
+    ["Underwater City"] = Vector3.new(4079.72, 2.01, -1785.09),
+    ["Fountain City"] = Vector3.new(5641.07, 579.58, 4439.00),
+}
+
+local Folder = Instance.new("Folder")
+Folder.Name = "FirstSeaIslandNameplates"
+Folder.Parent = workspace
+
+for Name, Position in pairs(Islands) do
+    local Part = Instance.new("Part")
+    Part.Size = Vector3.new(1, 1, 1)
+    Part.Position = Position
+    Part.Anchored = true
+    Part.CanCollide = false
+    Part.Transparency = 1
+    Part.Parent = Folder
+
+    local Billboard = Instance.new("BillboardGui")
+    Billboard.Size = UDim2.new(0, 110, 0, 22)
+    Billboard.StudsOffset = Vector3.new(0, 4, 0)
+    Billboard.AlwaysOnTop = true
+    Billboard.MaxDistance = 2500
+    Billboard.Adornee = Part
+    Billboard.Parent = Part
+
+    local Text = Instance.new("TextLabel")
+    Text.Size = UDim2.fromScale(1, 1)
+    Text.BackgroundTransparency = 1
+    Text.Text = Name
+    Text.TextScaled = true
+    Text.Font = Enum.Font.GothamBold
+    Text.TextColor3 = Color3.new(1, 1, 1)
+    Text.TextStrokeTransparency = 0.5
+    Text.Parent = Billboard
+end
