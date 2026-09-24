@@ -1,6 +1,10 @@
 
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local Players = game:GetService("Players")
+
+local LocalPlayer = Players.LocalPlayer
 
 -- Configuration for fruits that should not be displayed
 local DontShow = {
@@ -24,6 +28,28 @@ local function isFruit(object)
 
     -- Check if the object's name contains "fruit"
     return string.find(object.Name:lower(), "fruit") ~= nil
+end
+
+-- Sends a Roblox-style notification when a new fruit is detected
+-- Shows the fruit name and its distance from the player
+local function notifyFruit(fruit, part)
+    local character = LocalPlayer.Character
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+
+    if not rootPart then
+        return
+    end
+
+    -- Calculate the distance between the player and the fruit
+    local distance = (rootPart.Position - part.Position).Magnitude
+    distance = math.floor(distance)
+
+    -- Send the notification
+    StarterGui:SetCore("SendNotification", {
+        Title = "New fruit detected",
+        Text = "Name: " .. fruit.Name .. "\nDistance: " .. distance .. " studs",
+        Duration = 5
+    })
 end
 
 -- Creates the ESP display for a detected fruit
@@ -64,6 +90,9 @@ local function createESP(fruit)
 
     -- Display the ESP through CoreGui
     billboard.Parent = CoreGui
+
+    -- Show notification for the newly detected fruit
+    notifyFruit(fruit, part)
 end
 
 -- Prepares a fruit for ESP creation
@@ -103,7 +132,7 @@ for _, object in ipairs(Workspace:GetDescendants()) do
 end
 
 -- Detect new objects added anywhere inside Workspace
--- This allows newly spawned fruits to receive ESP automatically
+-- Newly spawned fruits will automatically receive ESP and a notification
 Workspace.DescendantAdded:Connect(function(object)
     setupFruit(object)
 end)
