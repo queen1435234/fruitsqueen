@@ -1,18 +1,49 @@
-```lua
+
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 
+-- Configuration for fruits that should not be displayed
+local DontShow = {
+    "Fruit1"
+}
+
+-- Checks whether an object should be detected as a fruit
+-- The object must be a Tool or Model
+-- The name must contain "fruit"
+-- The object must not be listed in DontShow
 local function isFruit(object)
-    return (object:IsA("Tool") or object:IsA("Model"))
-        and string.find(object.Name:lower(), "fruit") ~= nil
+    -- Ignore objects that are not Tools or Models
+    if not (object:IsA("Tool") or object:IsA("Model")) then
+        return false
+    end
+
+    -- Ignore fruits listed in the DontShow table
+    if table.find(DontShow, object.Name) then
+        return false
+    end
+
+    -- Check if the object's name contains "fruit"
+    return string.find(object.Name:lower(), "fruit") ~= nil
 end
 
+-- Creates the ESP display for a detected fruit
+-- Prevents duplicate ESP objects
+-- Attaches the ESP to the fruit's BasePart
 local function createESP(fruit)
-    if fruit:FindFirstChild("FruitESP") then return end
+    -- Prevent duplicate ESPs
+    if fruit:FindFirstChild("FruitESP") then
+        return
+    end
 
+    -- Find a BasePart inside the fruit
     local part = fruit:FindFirstChildWhichIsA("BasePart", true)
-    if not part then return end
 
+    -- Stop if the fruit does not have a BasePart yet
+    if not part then
+        return
+    end
+
+    -- Create the BillboardGui used for the ESP
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "FruitESP"
     billboard.AlwaysOnTop = true
@@ -20,6 +51,7 @@ local function createESP(fruit)
     billboard.StudsOffset = Vector3.new(0, 3, 0)
     billboard.Adornee = part
 
+    -- Create the text label displayed above the fruit
     local label = Instance.new("TextLabel")
     label.Parent = billboard
     label.Size = UDim2.new(1, 0, 1, 0)
@@ -30,42 +62,58 @@ local function createESP(fruit)
     label.Font = Enum.Font.SourceSansBold
     label.TextStrokeTransparency = 0.5
 
+    -- Display the ESP through CoreGui
     billboard.Parent = CoreGui
 end
 
+-- Prepares a fruit for ESP creation
+-- Waits for the fruit's BasePart to load
 local function setupFruit(fruit)
-    if not isFruit(fruit) then return end
+    -- Ignore objects that are not fruits
+    if not isFruit(fruit) then
+        return
+    end
 
+    -- Run the loading process separately
     task.spawn(function()
+        -- Check for the BasePart up to 20 times
         for _ = 1, 20 do
-            if not fruit.Parent then return end
+            -- Stop if the fruit no longer exists
+            if not fruit.Parent then
+                return
+            end
 
+            -- Create the ESP once the BasePart is available
             if fruit:FindFirstChildWhichIsA("BasePart", true) then
                 createESP(fruit)
                 print("Fruit detected:", fruit.Name)
                 return
             end
 
+            -- Wait briefly before checking again
             task.wait(0.1)
         end
     end)
 end
 
--- Scan all existing objects
+-- Scan all existing objects inside Workspace
+-- GetDescendants detects fruits inside folders and models too
 for _, object in ipairs(Workspace:GetDescendants()) do
     setupFruit(object)
 end
 
--- Detect new fruits anywhere in Workspace
+-- Detect new objects added anywhere inside Workspace
+-- This allows newly spawned fruits to receive ESP automatically
 Workspace.DescendantAdded:Connect(function(object)
     setupFruit(object)
 end)
 
--- Remove ESP when the fruit disappears
+-- Remove the ESP when an object is removed
+-- This prevents old ESP markers from staying behind
 Workspace.DescendantRemoving:Connect(function(object)
     local esp = object:FindFirstChild("FruitESP")
+
     if esp then
         esp:Destroy()
     end
 end)
-```
