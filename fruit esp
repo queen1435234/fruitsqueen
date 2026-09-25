@@ -10,7 +10,8 @@ local LocalPlayer = Players.LocalPlayer
 local DontShow = {
     "Fruit1",
 "Blox Fruit Dealer",
-"Blox Fruit Gacha"
+"Blox Fruit Gacha",
+"Fruit"
 
 }
 
