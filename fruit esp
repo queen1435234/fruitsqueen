@@ -8,7 +8,10 @@ local LocalPlayer = Players.LocalPlayer
 
 -- Configuration for fruits that should not be displayed
 local DontShow = {
-    "Fruit1"
+    "Fruit1",
+"Blox Fruit Dealer",
+"Blox Fruit Gacha"
+
 }
 
 -- Checks whether an object should be detected as a fruit
