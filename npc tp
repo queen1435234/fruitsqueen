@@ -1,0 +1,171 @@
+--[[
+    Nearest NPC Teleporter + Safety Platform 
+    - Best use with autoclicker
+    - Finds the nearest NPC with a Humanoid and HumanoidRootPart
+    - Teleports the local player 5 studs below the nearest NPC
+    - Creates an invisible platform below the player
+    - The platform follows the player's position
+    - Prevents the player from falling when there is no terrain underneath
+    - Press R to toggle the teleport loop
+    - Includes debug output
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+local enabled = false
+local offsetY = -5
+local interval = 0.05
+
+local platform
+local platformHeight = 1
+local platformSize = Vector3.new(8, 1, 8)
+
+local function debugPrint(...)
+    print("[NearestNPC]", ...)
+end
+
+-- Create safety platform
+local function createPlatform()
+    if platform and platform.Parent then
+        return platform
+    end
+
+    platform = Instance.new("Part")
+    platform.Name = "NearestNPC_SafetyPlatform"
+    platform.Size = platformSize
+    platform.Anchored = true
+    platform.CanCollide = true
+    platform.CanTouch = false
+    platform.CanQuery = false
+    platform.Transparency = 1
+    platform.CastShadow = false
+    platform.Parent = workspace
+
+    debugPrint("Safety platform created")
+
+    return platform
+end
+
+local function removePlatform()
+    if platform then
+        platform:Destroy()
+        platform = nil
+        debugPrint("Safety platform removed")
+    end
+end
+
+local function getCharacter()
+    return LocalPlayer.Character
+end
+
+local function getNearestNPC()
+    local character = getCharacter()
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+
+    if not root then
+        return nil, nil
+    end
+
+    local nearestNPC
+    local nearestRoot
+    local nearestDistance = math.huge
+
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj ~= character then
+            local humanoid = obj:FindFirstChildOfClass("Humanoid")
+            local npcRoot = obj:FindFirstChild("HumanoidRootPart")
+
+            if humanoid and npcRoot and humanoid.Health > 0 then
+                local distance =
+                    (root.Position - npcRoot.Position).Magnitude
+
+                if distance < nearestDistance then
+                    nearestDistance = distance
+                    nearestNPC = obj
+                    nearestRoot = npcRoot
+                end
+            end
+        end
+    end
+
+    return nearestRoot, nearestNPC
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.R then
+        enabled = not enabled
+
+        debugPrint(
+            "Teleport:",
+            enabled and "ENABLED" or "DISABLED"
+        )
+
+        if enabled then
+            createPlatform()
+        else
+            removePlatform()
+        end
+    end
+end)
+
+-- Keep platform directly underneath the player
+RunService.Heartbeat:Connect(function()
+    if not enabled then
+        return
+    end
+
+    local character = getCharacter()
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+
+    if not root then
+        return
+    end
+
+    local safetyPlatform = createPlatform()
+
+    safetyPlatform.CFrame =
+        CFrame.new(
+            root.Position.X,
+            root.Position.Y - 4,
+            root.Position.Z
+        )
+end)
+
+-- Teleport loop
+task.spawn(function()
+    debugPrint("Teleport loop started")
+
+    while true do
+        if enabled then
+            local character = getCharacter()
+
+            if character then
+                local root, npc = getNearestNPC()
+
+                if root and npc then
+                    local targetPosition =
+                        root.Position + Vector3.new(0, offsetY, 0)
+
+                    character:PivotTo(
+                        CFrame.new(targetPosition)
+                    )
+
+                    debugPrint(
+                        "Teleported below:",
+                        npc.Name
+                    )
+                end
+            end
+        end
+
+        task.wait(interval)
+    end
+end)
