@@ -1,14 +1,12 @@
 --[[
     First Sea Island Nameplates + Streaming Queue
 
-    Creates nameplates for First Sea locations.
-    Checks whether each island area is streamed in.
-    Missing island areas are added to a request queue.
+    Creates nameplates for First Sea island locations.
+    Checks whether each island area is currently loaded.
+    If an island area is not loaded, it is added to a streaming queue.
     Streaming requests are processed one at a time.
-    Notifications report:
-    - Streaming requested
-    - Stream successful
-    - Stream failed
+    There is a 1.5 second delay between every streaming request.
+    Notifications show when streaming is requested and whether it succeeded or failed.
 ]]
 
 local StarterGui = game:GetService("StarterGui")
@@ -107,7 +105,8 @@ local function ProcessQueue()
             )
         end
 
-        task.wait(0.15)
+        -- 1.5 second delay between every stream request
+        task.wait(1.5)
     end
 
     ProcessingQueue = false
@@ -116,13 +115,13 @@ end
 local function CheckIsland(Name, Position)
     if not IsIslandLoaded(Position) then
         AddToQueue(Name, Position)
-
         task.spawn(ProcessQueue)
     end
 end
 
 for Name, Position in pairs(Islands) do
     local Part = Instance.new("Part")
+
     Part.Name = Name
     Part.Size = Vector3.new(1, 1, 1)
     Part.Position = Position
@@ -134,6 +133,7 @@ for Name, Position in pairs(Islands) do
     Part.Parent = Folder
 
     local Billboard = Instance.new("BillboardGui")
+
     Billboard.Name = "Nameplate"
     Billboard.Size = UDim2.new(0, 110, 0, 22)
     Billboard.StudsOffset = Vector3.new(0, 4, 0)
@@ -143,6 +143,7 @@ for Name, Position in pairs(Islands) do
     Billboard.Parent = Part
 
     local Text = Instance.new("TextLabel")
+
     Text.Size = UDim2.fromScale(1, 1)
     Text.BackgroundTransparency = 1
     Text.Text = Name
