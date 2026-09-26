@@ -5,7 +5,7 @@
     - Teleports the local player 8 studs below the nearest NPC
     - Creates an invisible safety platform below the player
     - Applies NoClip while enabled
-    - Press T to toggle the system
+    - Press R to toggle the system
     - Detaches the camera from the character when enabled
     - Freecam can be moved with WASD, Space and LeftControl
     - Mouse controls the freecam direction
