@@ -1,13 +1,19 @@
 --[[
-    Nearest NPC Teleporter + Safety Platform + NoClip
-    - Best use with autoclicker
+    Nearest NPC Teleporter + Safety Platform + NoClip + Freecam
+
     - Finds the nearest NPC with a Humanoid and HumanoidRootPart
-    - Teleports the local player 5 studs below the nearest NPC
-    - Creates an invisible platform below the player
-    - The platform follows the player's position
-    - Prevents the player from falling when there is no terrain underneath
-    - Press R to toggle the teleport loop
-    - Includes debug output & NoClip to bypass walls/floors
+    - Teleports the local player 8 studs below the nearest NPC
+    - Creates an invisible safety platform below the player
+    - Applies NoClip while enabled
+    - Press T to toggle the system
+    - Detaches the camera from the character when enabled
+    - Freecam can be moved with WASD, Space and LeftControl
+    - Mouse controls the freecam direction
+    - SERVERPOS represents the character's actual server position
+    - SERVERPOS is updated after every NPC teleport
+    - A red SERVERPOS marker follows the character's latest teleport position
+    - Disabling the system restores normal camera control
+    - Includes debug output
 ]]
 
 local Players = game:GetService("Players")
@@ -15,13 +21,35 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
 local enabled = false
+
 local offsetY = -8
 local interval = 0.05
 
 local platform
-local platformHeight = 1
+local serverMarker
+
 local platformSize = Vector3.new(8, 1, 8)
+
+local serverPosition
+
+local freecamCFrame
+local freecamYaw = 0
+local freecamPitch = 0
+
+local freecamSpeed = 1.5
+local mouseSensitivity = 0.003
+
+local keys = {
+    W = false,
+    A = false,
+    S = false,
+    D = false,
+    Space = false,
+    LeftControl = false
+}
 
 local function debugPrint(...)
     print("[NearestNPC]", ...)
@@ -32,6 +60,7 @@ local function createPlatform()
     if platform and platform.Parent then
         return platform
     end
+
     platform = Instance.new("Part")
     platform.Name = "NearestNPC_SafetyPlatform"
     platform.Size = platformSize
@@ -42,7 +71,9 @@ local function createPlatform()
     platform.Transparency = 1
     platform.CastShadow = false
     platform.Parent = workspace
+
     debugPrint("Safety platform created")
+
     return platform
 end
 
@@ -54,6 +85,77 @@ local function removePlatform()
     end
 end
 
+-- Create or move SERVERPOS marker
+local function updateServerMarker(position)
+    serverPosition = position
+
+    if not serverMarker then
+        serverMarker = Instance.new("Part")
+        serverMarker.Name = "SERVERPOS"
+        serverMarker.Size = Vector3.new(4, 0.25, 4)
+        serverMarker.Anchored = true
+        serverMarker.CanCollide = false
+        serverMarker.CanTouch = false
+        serverMarker.CanQuery = false
+        serverMarker.Material = Enum.Material.Neon
+        serverMarker.Color = Color3.fromRGB(255, 0, 0)
+        serverMarker.Transparency = 0.15
+        serverMarker.CastShadow = false
+        serverMarker.Parent = workspace
+
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "SERVERPOS_Highlight"
+        highlight.Adornee = serverMarker
+        highlight.FillColor = Color3.fromRGB(255, 0, 0)
+        highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.Parent = serverMarker
+
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "SERVERPOS_Label"
+        billboard.Adornee = serverMarker
+        billboard.Size = UDim2.fromOffset(180, 50)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Parent = serverMarker
+
+        local text = Instance.new("TextLabel")
+        text.Name = "Text"
+        text.Size = UDim2.fromScale(1, 1)
+        text.BackgroundTransparency = 1
+        text.Text = "SERVERPOS"
+        text.TextColor3 = Color3.fromRGB(255, 0, 0)
+        text.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        text.TextStrokeTransparency = 0
+        text.TextScaled = true
+        text.Font = Enum.Font.GothamBold
+        text.Parent = billboard
+    end
+
+    serverMarker.CFrame = CFrame.new(
+        position.X,
+        position.Y - 3,
+        position.Z
+    )
+
+    debugPrint(
+        "SERVERPOS updated:",
+        math.floor(position.X),
+        math.floor(position.Y),
+        math.floor(position.Z)
+    )
+end
+
+local function removeServerMarker()
+    if serverMarker then
+        serverMarker:Destroy()
+        serverMarker = nil
+    end
+
+    serverPosition = nil
+end
+
 local function getCharacter()
     return LocalPlayer.Character
 end
@@ -61,6 +163,7 @@ end
 local function getNearestNPC()
     local character = getCharacter()
     local root = character and character:FindFirstChild("HumanoidRootPart")
+
     if not root then
         return nil, nil
     end
@@ -73,8 +176,12 @@ local function getNearestNPC()
         if obj:IsA("Model") and obj ~= character then
             local humanoid = obj:FindFirstChildOfClass("Humanoid")
             local npcRoot = obj:FindFirstChild("HumanoidRootPart")
+
             if humanoid and npcRoot and humanoid.Health > 0 then
-                local distance = (root.Position - npcRoot.Position).Magnitude
+                local distance = (
+                    root.Position - npcRoot.Position
+                ).Magnitude
+
                 if distance < nearestDistance then
                     nearestDistance = distance
                     nearestNPC = obj
@@ -83,68 +190,261 @@ local function getNearestNPC()
             end
         end
     end
+
     return nearestRoot, nearestNPC
 end
 
+-- Enable freecam
+local function enableFreecam()
+    local character = getCharacter()
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+
+    if not root then
+        return
+    end
+
+    -- SERVERPOS starts at the current character position
+    updateServerMarker(root.Position)
+
+    -- Start freecam exactly where the camera currently is
+    freecamCFrame = Camera.CFrame
+
+    local lookVector = freecamCFrame.LookVector
+
+    freecamYaw = math.atan2(
+        -lookVector.X,
+        -lookVector.Z
+    )
+
+    freecamPitch = math.asin(lookVector.Y)
+
+    Camera.CameraType = Enum.CameraType.Scriptable
+    Camera.CFrame = freecamCFrame
+
+    UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+    UserInputService.MouseIconEnabled = false
+
+    debugPrint("Freecam enabled")
+end
+
+-- Disable freecam
+local function disableFreecam()
+    UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+    UserInputService.MouseIconEnabled = true
+
+    Camera.CameraType = Enum.CameraType.Custom
+
+    local character = getCharacter()
+
+    if character then
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+        if humanoid then
+            Camera.CameraSubject = humanoid
+        end
+    end
+
+    removeServerMarker()
+
+    debugPrint("Freecam disabled")
+end
+
+-- Toggle
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then
         return
     end
+
     if input.KeyCode == Enum.KeyCode.R then
         enabled = not enabled
-        debugPrint("Teleport:", enabled and "ENABLED" or "DISABLED")
+
+        debugPrint(
+            "System:",
+            enabled and "ENABLED" or "DISABLED"
+        )
+
         if enabled then
             createPlatform()
+            enableFreecam()
         else
+            disableFreecam()
             removePlatform()
         end
+
+        return
+    end
+
+    if not enabled then
+        return
+    end
+
+    if input.KeyCode == Enum.KeyCode.W then
+        keys.W = true
+    elseif input.KeyCode == Enum.KeyCode.A then
+        keys.A = true
+    elseif input.KeyCode == Enum.KeyCode.S then
+        keys.S = true
+    elseif input.KeyCode == Enum.KeyCode.D then
+        keys.D = true
+    elseif input.KeyCode == Enum.KeyCode.Space then
+        keys.Space = true
+    elseif input.KeyCode == Enum.KeyCode.LeftControl then
+        keys.LeftControl = true
     end
 end)
 
--- Keep platform directly underneath the player & apply NoClip
-RunService.Stepped:Connect(function()
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then
+        keys.W = false
+    elseif input.KeyCode == Enum.KeyCode.A then
+        keys.A = false
+    elseif input.KeyCode == Enum.KeyCode.S then
+        keys.S = false
+    elseif input.KeyCode == Enum.KeyCode.D then
+        keys.D = false
+    elseif input.KeyCode == Enum.KeyCode.Space then
+        keys.Space = false
+    elseif input.KeyCode == Enum.KeyCode.LeftControl then
+        keys.LeftControl = false
+    end
+end)
+
+-- Freecam mouse control
+UserInputService.InputChanged:Connect(function(input)
+    if not enabled then
+        return
+    end
+
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        freecamYaw -= input.Delta.X * mouseSensitivity
+        freecamPitch -= input.Delta.Y * mouseSensitivity
+
+        freecamPitch = math.clamp(
+            freecamPitch,
+            math.rad(-89),
+            math.rad(89)
+        )
+    end
+end)
+
+-- Freecam + NoClip + safety platform
+RunService.RenderStepped:Connect(function(deltaTime)
     if not enabled then
         return
     end
 
     local character = getCharacter()
+
     if not character then
         return
     end
 
-    -- NoClip: Wyłączenie kolizji postaci, aby ściany/podłogi nie blokowały teleportu
+    -- NoClip
     for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") and part.CanCollide then
+        if part:IsA("BasePart") then
             part.CanCollide = false
         end
     end
 
+    -- Safety platform under actual character
     local root = character:FindFirstChild("HumanoidRootPart")
+
     if root then
         local safetyPlatform = createPlatform()
+
         safetyPlatform.CFrame = CFrame.new(
             root.Position.X,
             root.Position.Y - 4,
             root.Position.Z
         )
     end
+
+    -- Freecam rotation
+    local rotation =
+        CFrame.Angles(0, freecamYaw, 0)
+        * CFrame.Angles(freecamPitch, 0, 0)
+
+    local moveDirection = Vector3.zero
+
+    if keys.W then
+        moveDirection += Vector3.new(0, 0, -1)
+    end
+
+    if keys.S then
+        moveDirection += Vector3.new(0, 0, 1)
+    end
+
+    if keys.A then
+        moveDirection += Vector3.new(-1, 0, 0)
+    end
+
+    if keys.D then
+        moveDirection += Vector3.new(1, 0, 0)
+    end
+
+    if keys.Space then
+        moveDirection += Vector3.new(0, 1, 0)
+    end
+
+    if keys.LeftControl then
+        moveDirection += Vector3.new(0, -1, 0)
+    end
+
+    if moveDirection.Magnitude > 0 then
+        moveDirection = moveDirection.Unit
+
+        local worldDirection =
+            rotation:VectorToWorldSpace(moveDirection)
+
+        freecamCFrame =
+            freecamCFrame
+            + worldDirection
+            * freecamSpeed
+            * deltaTime
+            * 60
+    end
+
+    local position = freecamCFrame.Position
+
+    freecamCFrame =
+        CFrame.new(position)
+        * rotation
+
+    Camera.CFrame = freecamCFrame
 end)
 
 -- Teleport loop
 task.spawn(function()
     debugPrint("Teleport loop started")
+
     while true do
         if enabled then
             local character = getCharacter()
+
             if character then
-                local root, npc = getNearestNPC()
-                if root and npc then
-                    local targetPosition = root.Position + Vector3.new(0, offsetY, 0)
-                    character:PivotTo(CFrame.new(targetPosition))
-                    debugPrint("Teleported below:", npc.Name)
+                local npcRoot, npc = getNearestNPC()
+
+                if npcRoot and npc then
+                    local targetPosition =
+                        npcRoot.Position
+                        + Vector3.new(0, offsetY, 0)
+
+                    -- Actual character teleport
+                    character:PivotTo(
+                        CFrame.new(targetPosition)
+                    )
+
+                    -- SERVERPOS = actual teleport destination
+                    updateServerMarker(targetPosition)
+
+                    debugPrint(
+                        "Teleported below:",
+                        npc.Name
+                    )
                 end
             end
         end
+
         task.wait(interval)
     end
 end)
