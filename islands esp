@@ -1,4 +1,17 @@
---// First Sea Island Nameplates
+--[[
+    First Sea Island Nameplates + Streaming Queue
+
+    Creates nameplates for First Sea locations.
+    Checks whether each island area is streamed in.
+    Missing island areas are added to a request queue.
+    Streaming requests are processed one at a time.
+    Notifications report:
+    - Streaming requested
+    - Stream successful
+    - Stream failed
+]]
+
+local StarterGui = game:GetService("StarterGui")
 
 local Islands = {
     ["Pirate Starter"] = Vector3.new(1139.28, 16.30, 1489.91),
@@ -22,16 +35,106 @@ local Folder = Instance.new("Folder")
 Folder.Name = "FirstSeaIslandNameplates"
 Folder.Parent = workspace
 
+local function Notify(Text)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "Island Streaming",
+            Text = Text,
+            Duration = 3
+        })
+    end)
+end
+
+local function IsIslandLoaded(Position)
+    local Size = 32
+
+    local Min = Position - Vector3.new(Size, Size, Size)
+    local Max = Position + Vector3.new(Size, Size, Size)
+
+    local Region = Region3.new(Min, Max):ExpandToGrid(4)
+
+    local Success, Result = pcall(function()
+        return workspace:IsRegion3Loaded(Region)
+    end)
+
+    return Success and Result == true
+end
+
+local StreamQueue = {}
+local Queued = {}
+local ProcessingQueue = false
+
+local function AddToQueue(Name, Position)
+    if Queued[Name] then
+        return
+    end
+
+    Queued[Name] = true
+
+    table.insert(StreamQueue, {
+        Name = Name,
+        Position = Position
+    })
+end
+
+local function ProcessQueue()
+    if ProcessingQueue then
+        return
+    end
+
+    ProcessingQueue = true
+
+    while #StreamQueue > 0 do
+        local Request = table.remove(StreamQueue, 1)
+
+        Queued[Request.Name] = nil
+
+        Notify("Streaming requested " .. Request.Name)
+
+        local Success, Error = pcall(function()
+            workspace:RequestStreamAroundAsync(Request.Position)
+        end)
+
+        if Success then
+            Notify("Stream successful " .. Request.Name)
+        else
+            Notify("Stream failed " .. Request.Name)
+
+            warn(
+                "[Island Streaming] Failed:",
+                Request.Name,
+                Error
+            )
+        end
+
+        task.wait(0.15)
+    end
+
+    ProcessingQueue = false
+end
+
+local function CheckIsland(Name, Position)
+    if not IsIslandLoaded(Position) then
+        AddToQueue(Name, Position)
+
+        task.spawn(ProcessQueue)
+    end
+end
+
 for Name, Position in pairs(Islands) do
     local Part = Instance.new("Part")
+    Part.Name = Name
     Part.Size = Vector3.new(1, 1, 1)
     Part.Position = Position
     Part.Anchored = true
     Part.CanCollide = false
+    Part.CanQuery = false
+    Part.CanTouch = false
     Part.Transparency = 1
     Part.Parent = Folder
 
     local Billboard = Instance.new("BillboardGui")
+    Billboard.Name = "Nameplate"
     Billboard.Size = UDim2.new(0, 110, 0, 22)
     Billboard.StudsOffset = Vector3.new(0, 4, 0)
     Billboard.AlwaysOnTop = true
@@ -48,4 +151,6 @@ for Name, Position in pairs(Islands) do
     Text.TextColor3 = Color3.new(1, 1, 1)
     Text.TextStrokeTransparency = 0.5
     Text.Parent = Billboard
+
+    CheckIsland(Name, Position)
 end
