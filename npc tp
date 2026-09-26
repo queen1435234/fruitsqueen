@@ -39,7 +39,7 @@ local freecamCFrame
 local freecamYaw = 0
 local freecamPitch = 0
 
-local freecamSpeed = 1.5
+local freecamSpeed = 2.3
 local mouseSensitivity = 0.003
 
 local keys = {
